@@ -25,8 +25,7 @@ find "$SRC_DIR" -type f -name "*.png" ! -name ".*" | while read -r file; do
   if [ ! -f "$output_file" ]; then
     echo "Convirtiendo: $file → $output_file"
     cwebp -q "$QUALITY" "$file" -o "$output_file" >/dev/null 2>&1
-  else
-    echo "Ya existe: $output_file, se omite"
+    # gif2webp q "$QUALITY" "$file" -o "$output_file" >/dev/null 2>&1
   fi
 done
 
