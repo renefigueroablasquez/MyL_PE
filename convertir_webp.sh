@@ -1,32 +1,43 @@
 #!/bin/bash
 
-# Carpeta origen (donde están las imágenes PNG)
-SRC_DIR="./full"
+convert_dir() {
+  local SRC_DIR="$1"
+  local DEST_DIR="$2"
+  local QUALITY="$3"
+  local RESIZE="$4"  # opcional: porcentaje de escala (ej: 30)
 
-# Carpeta destino (donde se guardarán los WEBP)
-DEST_DIR="./webp"
+  find "$SRC_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) ! -name ".*" | while read -r file; do
+    relative_path="${file#$SRC_DIR/}"
+    output_dir="$DEST_DIR/$(dirname "$relative_path")"
+    mkdir -p "$output_dir"
+    output_file="$output_dir/$(basename "${relative_path%.*}.webp")"
 
-# Calidad de conversión (0-100)
-QUALITY=80
+    if [ ! -f "$output_file" ]; then
+      echo "Convirtiendo: $file → $output_file"
+      if [ -n "$RESIZE" ]; then
+        orig_width=$(sips -g pixelWidth "$file" | awk '/pixelWidth/{print $2}')
+        new_width=$(( orig_width * RESIZE / 100 ))
+        cwebp -q "$QUALITY" -resize "$new_width" 0 "$file" -o "$output_file" >/dev/null 2>&1
+      else
+        cwebp -q "$QUALITY" "$file" -o "$output_file" >/dev/null 2>&1
+      fi
+    fi
+  done
+}
 
-# Recorre todos los archivos .png dentro de full y subcarpetas
-find "$SRC_DIR" -type f -name "*.png" ! -name ".*" | while read -r file; do
-  # Ruta relativa desde SRC_DIR
-  relative_path="${file#$SRC_DIR/}"
-
-  # Carpeta donde se guardará el nuevo archivo webp
-  output_dir="$DEST_DIR/$(dirname "$relative_path")"
-  mkdir -p "$output_dir"
-
-  # Nombre de salida con extensión .webp
-  output_file="$output_dir/$(basename "${relative_path%.png}.webp")"
-
-  # Solo convertir si el archivo no existe
-  if [ ! -f "$output_file" ]; then
-    echo "Convirtiendo: $file → $output_file"
-    cwebp -q "$QUALITY" "$file" -o "$output_file" >/dev/null 2>&1
-    # gif2webp q "$QUALITY" "$file" -o "$output_file" >/dev/null 2>&1
-  fi
-done
+convert_dir "./full"          "./webp"                 80
+convert_dir "./ilustraciones" "./webp/ilustraciones"   100
+convert_dir "./ilustraciones" "./webp/ilustraciones_min" 50 30
 
 echo "Conversión completada."
+
+# Sincronizar con el servidor
+SERVER_PATH="/Volumes/sdd/tcgMyL/images/webp"
+
+if [ -d "$SERVER_PATH" ]; then
+  echo "Sincronizando con el servidor..."
+  rsync -av --update ./webp/ "$SERVER_PATH/"
+  echo "Sincronización completada."
+else
+  echo "⚠️  Servidor no montado. Monta smb://RASPBERRYPI02._smb._tcp.local/sdd antes de sincronizar."
+fi
